@@ -1,0 +1,84 @@
+\newpage
+\tableofcontents 
+\newpage
+\listoftables 
+\newpage
+\listoffigures 
+\newpage
+
+```{r setup, include=FALSE}
+# Set your working directory
+
+# Load your packages
+library(tidyverse);library(dataRetrieval);library(lubridate);library(remotes)
+#install_github("USEPA/StreamCatTools", build_vignettes=TRUE, force=TRUE)
+library("StreamCatTools")
+
+# Set your ggplot theme
+
+# Load your datasets
+
+StreamCat.get <- function(name, state) {
+
+  #Retrieve the website contents 
+  report <- read_csv(paste0('https://java.epa.gov/StreamCAT/metrics?name=', name,
+                            '&state=',state))
+  
+  #Construct a dataframe from the scraped data
+  df <- data.frame(report)
+  
+  Sys.sleep(1) # Scraping etiquette
+  return(df)
+}
+
+```
+
+
+# Rationale and Research Questions
+
+
+
+\newpage
+
+# Dataset Information
+
+```{r StreamCat example}
+
+region_params <- sc_get_params(param='areaOfInterest')
+region_params
+name_params <- sc_get_params(param='name')
+
+metric='mast_2014'
+fullname <- sc_fullname(metric)
+print(paste0('The full name for ',metric, ' is: ', paste(fullname,collapse = ', ')))
+
+```
+
+\newpage
+
+# Exploratory Analysis 
+
+
+
+\newpage
+
+# Analysis
+
+
+
+## Question 1: <insert specific question here and add additional subsections for additional questions below, if needed>
+
+## Question 2: 
+
+
+
+
+\newpage
+
+# Summary and Conclusions
+
+
+\newpage
+
+# References
+<add references here if relevant, otherwise delete this section> 
