@@ -18,19 +18,17 @@ library("StreamCatTools")
 
 # Load your datasets
 
-StreamCat.get <- function(name, state) {
+nlcd <- data.frame()
 
-  #Retrieve the website contents 
-  report <- read_csv(paste0('https://java.epa.gov/StreamCAT/metrics?name=', name,
-                            '&state=',state))
-  
-  #Construct a dataframe from the scraped data
-  df <- data.frame(report)
-  
-  Sys.sleep(1) # Scraping etiquette
-  return(df)
+years <- c(2001, 2004, 2006, 2008, 2011, 2013, 2016, 2019)
+
+for (i in length(years)) {
+  nlcd_i <- sc_nlcd(years[i], state = "TX")
+  nlcd_i %>% mutate(Year = years[i])
+  nlcd <- rbind(nlcd, nlcd_i)
 }
 
+TX_nlcd_2019 <- sc_nlcd(2019, state = "TX")
 ```
 
 
