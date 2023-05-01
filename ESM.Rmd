@@ -92,7 +92,21 @@ Eurycea <- drop_na(Eurycea) # Remove NA's
 
 # Rationale and Research Questions
 
-Genetic testing has delineated fourteen species of Eurycea cave salamanders in Texas, three of which are undescribed (Devitt et al. 2019). 
+Genetic testing has delineated fourteen species of Eurycea cave salamanders in central Texas, three of which are undescribed (Devitt et al. 2019). These undescribed species are new to science and therefore enjoy no protections under the Endangered Species Act (ESA). The first of these species was the subject of a petition by Save our Springs Alliance (SOS) to the U.S. Fish and Wildlife Service (USFWS) for its protection (Datri 2021). This petition passed its initial review and USFWS is now considering the species for protection (FWS 2022). Anthropogenic development including land cover change and groundwater overdraft pose the largest threats to Eurycea species by destroying forests that protect their habitats and draining the groundwater in which they live (Datri 2021).
+
+During the 2022-2023 school year, I worked with Rory Kuczek on a NSOE master's project for SOS to facilitate and strengthen future petitions by analyzing habitat threats to these undescribed species. Kuczek and I used MaxEnt and nonmetric multidimensional scaling (NMS) statistical methods to test the association of Eurycea species presences with 13 catchment-level environmental metrics from the StreamCat dataset. Both methods identified that undescribed Eurycea species 2 and 3 presences were most dependent on base flow index (BFI), a ratio of groundwater discharge to total surface flow.
+
+Building on these results, I intend to test two research questions related to habitat degradation for Eurycea species 2 and 3.
+
+1. Has developed land cover (at the catchment and watershed level) increased over time at the known habitats of species 2 and 3?
+
+2. Between species 2 and species 3, which species' habitat has a higher percentage and/or rate of increase for developed land cover?
+
+3. How do these land cover changes (if any) compare to rates of change throughout Texas?
+
+4. Across Texas, are increases in developed land cover over time associated with higher levels of BFI?
+
+Answers to these questions will paint a clearer picture of development in Eurycea species 2 and 3 habitat, potentially contributing to the urgency of protecting their habitat in subsequent petitions to USFWS.
 
 \newpage
 
@@ -156,6 +170,10 @@ non_num <- names(Eurycea) %in% c("Species","STATE")
 
 # References
 
+Datri, Crystal (2021). “Petition to the U.S. Fish and Wildlife Service to List the Pedernales River Springs Salamander as a Threatened or Endangered Species Under the Endangered Species Act.”
+
 Devitt, T. J., Wright, A. M., Cannatella, D. C., & Hillis, D. M. (2019). Species delimitation in endangered groundwater salamanders: Implications for aquifer management and biodiversity conservation. Proceedings of the National Academy of Sciences, 116(7), 2624-2633.
+
+Service Completes Initial Reviews on Endangered Species Act Petitions for Four Species | U.S. Fish & Wildlife Service. 2022 Oct 18. FWSgov. [accessed 2023 May 1]. https://fws.gov/press-release/2022-10/service-completes-initial-reviews-endangered-species-act-petitions-four.
 
 Weber M (2023). StreamCatTools: Streamcat Tools. R package version 0.1.1.9002, https://usepa.github.io/StreamCatTools/. 
