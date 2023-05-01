@@ -11,34 +11,94 @@
 
 # Load your packages
 library(tidyverse);library(dataRetrieval);library(lubridate);library(remotes)
+library(ggplot2);library(ggthemes);library(rlang);library(ecodist) 
 #install_github("USEPA/StreamCatTools", build_vignettes=TRUE, force=TRUE)
-library("StreamCatTools")
+library("StreamCatTools") # This imports EPA's tool for StreamCat data
 
 # Set your ggplot theme
+starwars <- theme_base() +  
+  theme( # Pulled from John's theme template code
+    line = element_line(color = "white"), 
+    rect = element_rect(fill = "black"),
+    text = element_text(color = "yellow"), 
+    
+    # Modified inheritance structure of text element
+    #plot.title = element_text(color = "yellow"), 
+    #axis.title.x =      element_blank(),
+    #axis.title.y =      element_blank(),
+    #axis.text = element_text(color = "yellow"), 
+    
+    # Modified inheritance structure of line element
+    axis.ticks = element_line(color = "yellow"),
+    panel.grid.major = element_line(color = "yellow", 
+                                    linetype = "dashed"),
+    
+    # Modified inheritance structure of rect element
+    #plot.background = element_rect(fill = "black"),
+    #panel.background = element_rect(fill = "black")
+    #legend.key =        element_rect(),
+    
+    # Modifiying legend.position
+    #legend.position = 'right',
+    
+    #complete = TRUE
+    )
+```
 
-# Load your datasets
+``` {r data wrangling}
+# Load the data
 
-nlcd <- data.frame()
+# Pulling NLCD from StreamCat for every COMID in TX for every year available
 
 years <- c(2001, 2004, 2006, 2008, 2011, 2013, 2016, 2019)
+length(years) # 8 years
 
-for (i in length(years)) {
-  nlcd_i <- sc_nlcd(years[i], state = "TX")
-  nlcd_i %>% mutate(Year = years[i])
-  nlcd <- rbind(nlcd, nlcd_i)
+nlcd <- data.frame() # Create empty dataframe to be filled
+
+for (i in 1:8) { # For each year for which there are NLCD...
+  nlcd_i <- sc_nlcd(years[i], state = "TX") # Create temporary df for this year
+  nlcd_i$Year = years[i] # Denote which year these data are from
+  for (col in 1:ncol(nlcd_i)){
+    colnames(nlcd_i)[col] <- sub(years[i], "", colnames(nlcd_i)[col])
+  } # All the column names have the year in them. I want them removed
+  nlcd <- rbind(nlcd, nlcd_i) # Adjoin to growing dataframe of all NLCD
+  rm(nlcd_i) # Remove the temporary dataframe
 }
 
-TX_nlcd_2019 <- sc_nlcd(2019, state = "TX")
+summary(nlcd) # Check the resulting dataframe
+# All the fields starting with "PCT" should have a max of 100.00
+# Year should run from min: 2001 to max: 2019
+# I note there are a lot of NA's; we'll remove those later
+
+# List of Eurycea species found in each COMID (from my MP)
+species <- read.csv("species.csv", stringsAsFactors = TRUE)
+summary(species) # This gives a sense of which species have most presences
+
+# Pull BFI for every COMID in TX (this is comparably easy)
+bfi <- sc_get_data(metric = "BFI", state = "TX")
+summary(bfi) # Again we see a lot of NA's, to be removed later
+
+# Assemble the final dataframe
+nlcd_bfi <- merge(nlcd, bfi) # Intermediary df with the env. variables
+Eurycea <- merge(species, nlcd_bfi) # Adjoin to salamander presences
+rm(nlcd_bfi)#;rm(bfi);rm(nlcd)
+
+# Clean up the dataframe
+Eurycea <- unique(Eurycea) # Remove duplicates
+Eurycea <- drop_na(Eurycea) # Remove NA's
+
 ```
 
 
 # Rationale and Research Questions
 
-
+Genetic testing has delineated fourteen species of Eurycea cave salamanders in Texas, three of which are undescribed (Devitt et al. 2019). 
 
 \newpage
 
 # Dataset Information
+
+The StreamCat dataset details over 600 natural and anthropogenic metrics for streams in the contintental US at the catchment and watershed levels. The dataset includes robust web services such as a REST API and R package to facilitate data management. StreamCat is maintained by EPA as part of the National Aquatic Resource Surveys. Use of this dataset for analysis of Eurycea salamander species was recommended by John Fay.
 
 ```{r StreamCat example}
 
@@ -46,7 +106,7 @@ region_params <- sc_get_params(param='areaOfInterest')
 region_params
 name_params <- sc_get_params(param='name')
 
-metric='mast_2014'
+metric='bfi'
 fullname <- sc_fullname(metric)
 print(paste0('The full name for ',metric, ' is: ', paste(fullname,collapse = ', ')))
 
@@ -56,18 +116,33 @@ print(paste0('The full name for ',metric, ' is: ', paste(fullname,collapse = ', 
 
 # Exploratory Analysis 
 
+```{r poking around}
 
+# Behold the assembled dataframe
+summary(Eurycea)
+
+# Delinate non-numeric columns for ease of exclusion
+non_num <- names(Eurycea) %in% c("Species","STATE")
+
+
+
+```
 
 \newpage
 
 # Analysis
 
+```{r meat on the bone}
 
 
-## Question 1: <insert specific question here and add additional subsections for additional questions below, if needed>
+
+```
+
+## Question 1:
+
+
 
 ## Question 2: 
-
 
 
 
@@ -76,7 +151,11 @@ print(paste0('The full name for ',metric, ' is: ', paste(fullname,collapse = ', 
 # Summary and Conclusions
 
 
+
 \newpage
 
 # References
-<add references here if relevant, otherwise delete this section> 
+
+Devitt, T. J., Wright, A. M., Cannatella, D. C., & Hillis, D. M. (2019). Species delimitation in endangered groundwater salamanders: Implications for aquifer management and biodiversity conservation. Proceedings of the National Academy of Sciences, 116(7), 2624-2633.
+
+Weber M (2023). StreamCatTools: Streamcat Tools. R package version 0.1.1.9002, https://usepa.github.io/StreamCatTools/. 
