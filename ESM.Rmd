@@ -45,19 +45,21 @@ starwars <- theme_base() +
     )
 ```
 
-``` {r data wrangling}
+``` {r import data}
 # Load the data
 
 # Pulling NLCD from StreamCat for every COMID in TX for every year available
 
 years <- c(2001, 2004, 2006, 2008, 2011, 2013, 2016, 2019)
+dates <- c('20010101', '20040101', '20060101', '20080101', '20110101', 
+           '20130101', '20160101', '20190101') # Best to have ymd format
 length(years) # 8 years
 
 nlcd <- data.frame() # Create empty dataframe to be filled
 
 for (i in 1:8) { # For each year for which there are NLCD...
   nlcd_i <- sc_nlcd(years[i], state = "TX") # Create temporary df for this year
-  nlcd_i$Year = years[i] # Denote which year these data are from
+  nlcd_i$Year = dates[i] # Denote which year these data are from
   for (col in 1:ncol(nlcd_i)){
     colnames(nlcd_i)[col] <- sub(years[i], "", colnames(nlcd_i)[col])
   } # All the column names have the year in them. I want them removed
@@ -65,27 +67,23 @@ for (i in 1:8) { # For each year for which there are NLCD...
   rm(nlcd_i) # Remove the temporary dataframe
 }
 
-summary(nlcd) # Check the resulting dataframe
+#summary(nlcd) # Check the resulting dataframe
 # All the fields starting with "PCT" should have a max of 100.00
 # Year should run from min: 2001 to max: 2019
 # I note there are a lot of NA's; we'll remove those later
 
 # List of Eurycea species found in each COMID (from my MP)
 species <- read.csv("species.csv", stringsAsFactors = TRUE)
-summary(species) # This gives a sense of which species have most presences
+#summary(species) # This gives a sense of which species have most presences
 
 # Pull BFI for every COMID in TX (this is comparably easy)
 bfi <- sc_get_data(metric = "BFI", state = "TX")
-summary(bfi) # Again we see a lot of NA's, to be removed later
+#summary(bfi) # Again we see a lot of NA's, to be removed later
 
 # Assemble the final dataframe
 nlcd_bfi <- merge(nlcd, bfi) # Intermediary df with the env. variables
-Eurycea <- merge(species, nlcd_bfi) # Adjoin to salamander presences
+env_vars <- merge(species, nlcd_bfi) # Adjoin to salamander presences
 rm(nlcd_bfi)#;rm(bfi);rm(nlcd)
-
-# Clean up the dataframe
-Eurycea <- unique(Eurycea) # Remove duplicates
-Eurycea <- drop_na(Eurycea) # Remove NA's
 
 ```
 
@@ -98,13 +96,13 @@ During the 2022-2023 school year, I worked with Rory Kuczek on a NSOE master's p
 
 Building on these results, I intend to test two research questions related to habitat degradation for Eurycea species 2 and 3.
 
-1. Has developed land cover (at the catchment and watershed level) increased over time at the known habitats of species 2 and 3?
+1. Has developed land cover increased over time in the known habitats of species 2 and 3?
 
 2. Between species 2 and species 3, which species' habitat has a higher percentage and/or rate of increase for developed land cover?
 
-3. How do these land cover changes (if any) compare to rates of change throughout Texas?
+3. Are these land cover changes different from rates of change throughout Texas?
 
-4. Across Texas, are increases in developed land cover over time associated with higher levels of BFI?
+4. Across Texas, are increases in developed land cover over time higher in catchments/watersheds with higher levels of BFI?
 
 Answers to these questions will paint a clearer picture of development in Eurycea species 2 and 3 habitat, potentially contributing to the urgency of protecting their habitat in subsequent petitions to USFWS.
 
@@ -114,15 +112,28 @@ Answers to these questions will paint a clearer picture of development in Euryce
 
 The StreamCat dataset details over 600 natural and anthropogenic metrics for streams in the contintental US at the catchment and watershed levels. The dataset includes robust web services such as a REST API and R package to facilitate data management. StreamCat is maintained by EPA as part of the National Aquatic Resource Surveys. Use of this dataset for analysis of Eurycea salamander species was recommended by John Fay.
 
-```{r StreamCat example}
+Salamander presences were obtained from scientific literature (Devitt et al. 2019) and expert communication in government petitions (Datri 2021).
 
-region_params <- sc_get_params(param='areaOfInterest')
-region_params
-name_params <- sc_get_params(param='name')
+```{r data wrangling}
 
-metric='bfi'
-fullname <- sc_fullname(metric)
-print(paste0('The full name for ',metric, ' is: ', paste(fullname,collapse = ', ')))
+Eurycea <-
+  env_vars %>%
+  distinct() %>%
+  drop_na() %>%
+  mutate(Year = ymd(Year)) %>%
+  mutate(BFI = BFICAT) %>% # We're working at the catchment level
+  mutate(PercentDevelop = PCTURBLOCAT + PCTURBMDCAT + PCTURBHICAT + PCTURBOPCAT) %>%
+  mutate(PercentForest = PCTCONIFCAT + PCTDECIDCAT + PCTMXFSTCAT) %>%
+  select(COMID, Species, Year, BFI, PercentDevelop, PercentForest)
+
+Eurycea.only <- # Dataframe of only salamander presences
+  Eurycea %>%
+  filter(Species != "background") # Remove all background catchments
+
+Eurycea.unnamed <- # Dataframe of only undescribed species
+  Eurycea %>%
+  filter(Species %in% c("sp1", "sp2", "sp3")) %>%
+  group_by(Species)
 
 ```
 
@@ -130,35 +141,139 @@ print(paste0('The full name for ',metric, ' is: ', paste(fullname,collapse = ', 
 
 # Exploratory Analysis 
 
-```{r poking around}
+```{r development plots, echo=FALSE}
 
-# Behold the assembled dataframe
-summary(Eurycea)
+ggplot(Eurycea.only, aes(x = Year, 
+                         y = PercentDevelop, 
+                         color = Species)) + 
+                     geom_point() + 
+  # Add line of best fit for each species
+ stat_smooth(method = "lm", 
+              formula = y ~ x, 
+              se = FALSE,
+              alpha = 0.5) +
+  xlab("Year") +
+  ylab("% Developed Land Cover") + 
+  ggtitle("Development in Eurycea Habitat over Time")
 
-# Delinate non-numeric columns for ease of exclusion
-non_num <- names(Eurycea) %in% c("Species","STATE")
-
-
+ggplot(Eurycea.unnamed, aes(x = Year, 
+                         y = PercentDevelop, 
+                         color = Species)) + 
+                     geom_point() + 
+  # Add line of best fit for each species
+ stat_smooth(method = "lm", 
+              formula = y ~ x, 
+              se = FALSE,
+              alpha = 0.5) +
+  xlab("Year") +
+  ylab("% Developed Land Cover") + 
+  ggtitle("Development in Undescribed Eurycea Species Habitats over Time")
 
 ```
+
+This first plot shows a clear upward trend in development within catchments from 2001 to 2019 for most Eurycea species. The slope of this trend is more extreme for some species, especially E. neotenes.
+
+The second plot shows development over time for the three undescribed species. Initial takeaways are that sp. 3 has the highest percentage of development within its catchments from 2001 to 2019, followed by sp. 2 and sp. 1. It is also clear that known sites for these species have dramatic outliers, with one sp. 3 site routinely scoring at around 30-35% developed land cover, whereas most sites have 10% or less development.
+
+```{r forest plots, echo=FALSE}
+
+ggplot(Eurycea.only, aes(x = Year, 
+                         y = PercentForest, 
+                         color = Species)) + 
+                     geom_point() + 
+  # Add line of best fit for each species
+ stat_smooth(method = "lm", 
+              formula = y ~ x, 
+              se = FALSE,
+              alpha = 0.5) +
+  xlab("Year") +
+  ylab("% Forested Land Cover") + 
+  ggtitle("Forest in Eurycea Habitat over Time")
+
+ggplot(Eurycea.unnamed, aes(x = Year, 
+                         y = PercentForest, 
+                         color = Species)) + 
+                     geom_point() + 
+  # Add line of best fit for each species
+ stat_smooth(method = "lm", 
+              formula = y ~ x, 
+              se = FALSE,
+              alpha = 0.5) +
+  xlab("Year") +
+  ylab("% Forested Land Cover") + 
+  ggtitle("Forest in Undescribed Eurycea Species Habitats over Time")
+
+```
+
+Conversely, a plot of forested land cover over time shows a clear downward trend for most Eurycea species. This trend is most dramatic, again, for E. neotenes. Together, these plots suggest that most deforestation and development is occurring in E. neotenes catchments relative to other Eurycea species.
+
+The second plot again restricts this analysis to the undescribed species. Forest cover remains relatively constant for sp. 2 (20%) and sp. 3 (40%) over time, but shows a downward trend for sp. 1.
 
 \newpage
 
 # Analysis
 
-```{r meat on the bone}
+## Question 1: Has developed land cover increased over time in the known habitats of species 2 and 3?
 
+```{r development change over time}
 
+devtime.lm <- lm(data = Eurycea.unnamed, PercentDevelop ~ Year)
+summary(devtime.lm) # Fails to achieve significance
+
+ggplot(Eurycea.unnamed, aes(x = Year, 
+                            y = PercentDevelop)) + 
+  stat_smooth(method = "lm", 
+              formula = y ~ x, 
+              se = TRUE,
+              alpha = 0.5) +
+  xlab("Year") +
+  ylab("Developed Land Cover (%)") + 
+  ggtitle("Texas Development in Stream Catchments over Time")
 
 ```
 
-## Question 1:
+## Question 2: Between species 2 and species 3, which species' habitat has a higher percentage and/or rate of increase for developed land cover?
 
+```{r compare 2 and 3}
 
+Eurycea.sp2sp3 <- # Dataframe of only sp. 2 & sp. 3
+  Eurycea.unnamed %>%
+  filter(Species %in% c("sp2","sp3"))
 
-## Question 2: 
+devsp.lm <- lm(data = Eurycea, PercentDevelop ~ Species)
+summary(devsp.lm) # sp. 3 achieves signifance
 
+```
 
+## Question 3: Are these land cover changes different from rates of change throughout Texas?
+
+```{r development change over time}
+
+devtime.lm <- lm(data = Eurycea, PercentDevelop ~ Year)
+summary(devtime.lm) # Achieves significance, but very low R-squared
+
+ggplot(Eurycea, aes(x = Year, 
+                    y = PercentDevelop)) + 
+  stat_smooth(method = "lm", 
+              formula = y ~ x, 
+              se = TRUE,
+              alpha = 0.5) +
+  xlab("Year") +
+  ylab("Developed Land Cover (%)") + 
+  ggtitle("Texas Development in Stream Catchments over Time")
+
+```
+
+## Question 4: Across Texas, are increases in developed land cover over time higher in catchments/watersheds with higher levels of BFI?
+
+```{r BFI effect on development}
+
+bfidev.lm <- lm(data = Eurycea, BFI ~ PercentDevelop)
+summary(bfidev.lm) # Shows significant negative effect
+
+```
+
+This simple linear model suggests that base flow index and development cover are negatively correlated. The model achieves significance, but has an adjusted R-squared of less than 1%. 
 
 \newpage
 
