@@ -1,3 +1,11 @@
+---
+title: "Development Change in Texas Eurycea Habitat"
+author: "Annabelle White"
+output:
+  pdf_document: default
+  html_document: default
+geometry: margin=2.54cm
+---
 \newpage
 \tableofcontents 
 \newpage
@@ -6,57 +14,15 @@
 \listoffigures 
 \newpage
 
-```{r setup, include=FALSE}
+```{r setup, echo=FALSE, warning = FALSE}
 # Set your working directory
 
 # Load your packages
 library(tidyverse);library(dataRetrieval);library(lubridate);library(remotes)
-library(ggplot2);library(ggthemes);library(RColorBrewer)
-library(rlang);library(Kendall)
+library(ggplot2);library(ggthemes)
+library(rlang);library(Kendall);library(knitr)
 #install_github("USEPA/StreamCatTools", build_vignettes=TRUE, force=TRUE)
 library("StreamCatTools") # This imports EPA's tool for StreamCat data
-
-```
-
-``` {r import data}
-# Load the data
-
-# Pulling NLCD from StreamCat for every COMID in TX for every year available
-
-years <- c(2001, 2004, 2006, 2008, 2011, 2013, 2016, 2019)
-dates <- c('20010101', '20040101', '20060101', '20080101', '20110101', 
-           '20130101', '20160101', '20190101') # Best to have ymd format
-length(years) # 8 years
-
-nlcd <- data.frame() # Create empty dataframe to be filled
-
-for (i in 1:8) { # For each year for which there are NLCD...
-  nlcd_i <- sc_nlcd(years[i], state = "TX") # Create temporary df for this year
-  nlcd_i$Year = dates[i] # Denote which year these data are from
-  for (col in 1:ncol(nlcd_i)){
-    colnames(nlcd_i)[col] <- sub(years[i], "", colnames(nlcd_i)[col])
-  } # All the column names have the year in them. I want them removed
-  nlcd <- rbind(nlcd, nlcd_i) # Adjoin to growing dataframe of all NLCD
-  rm(nlcd_i) # Remove the temporary dataframe
-}
-
-#summary(nlcd) # Check the resulting dataframe
-# All the fields starting with "PCT" should have a max of 100.00
-# Year should run from min: 2001 to max: 2019
-# I note there are a lot of NA's; we'll remove those later
-
-# List of Eurycea species found in each COMID (from my MP)
-species <- read.csv("species.csv", stringsAsFactors = TRUE)
-#summary(species) # This gives a sense of which species have most presences
-
-# Pull BFI for every COMID in TX (this is comparably easy)
-bfi <- sc_get_data(metric = "BFI", state = "TX")
-#summary(bfi) # Again we see a lot of NA's, to be removed later
-
-# Assemble the final dataframe
-nlcd_bfi <- merge(nlcd, bfi) # Intermediary df with the env. variables
-env_vars <- merge(species, nlcd_bfi) # Adjoin to salamander presences
-rm(nlcd_bfi)#;rm(bfi);rm(nlcd)
 
 ```
 
@@ -92,7 +58,58 @@ I subsequently wrangled this dataframe to remove duplicates and NA values, chang
 
 Salamander presences were obtained from scientific literature (Devitt et al. 2019) and expert communication in government petitions (Datri 2021).
 
-```{r data wrangling}
+``` {r import data, echo = FALSE}
+# Pulling NLCD from StreamCat for every COMID in TX for every year available
+
+years <- c(2001, 2004, 2006, 2008, 2011, 2013, 2016, 2019)
+dates <- c('20010101', '20040101', '20060101', '20080101', '20110101', 
+           '20130101', '20160101', '20190101') # Best to have ymd format
+length(years) # 8 years
+
+nlcd <- data.frame() # Create empty dataframe to be filled
+
+for (i in 1:8) { # For each year for which there are NLCD...
+  nlcd_i <- sc_nlcd(years[i], state = "TX") # Create temporary df for this year
+  nlcd_i$Year = dates[i] # Denote which year these data are from
+  for (col in 1:ncol(nlcd_i)){
+    colnames(nlcd_i)[col] <- sub(years[i], "", colnames(nlcd_i)[col])
+  } # All the column names have the year in them. I want them removed
+  nlcd <- rbind(nlcd, nlcd_i) # Adjoin to growing dataframe of all NLCD
+  rm(nlcd_i) # Remove the temporary dataframe
+}
+
+#summary(nlcd) # Check the resulting dataframe
+# All the fields starting with "PCT" should have a max of 100.00
+# Year should run from min: 2001 to max: 2019
+# I note there are a lot of NA's; we'll remove those later
+
+# List of Eurycea species found in each COMID (from my MP)
+species <- read.csv("species.csv", stringsAsFactors = TRUE)
+#summary(species) # This gives a sense of which species have most presences
+
+# Pull BFI for every COMID in TX (this is comparably easy)
+bfi <- sc_get_data(metric = "BFI", state = "TX")
+#summary(bfi) # Again we see a lot of NA's, to be removed later
+
+# Assemble the final dataframe
+nlcd_bfi <- merge(nlcd, bfi) # Intermediary df with the env. variables
+env_vars <- merge(species, nlcd_bfi) # Adjoin to salamander presences
+
+```
+
+```{r BFI table, echo=F}
+kable(head(bfi, n = 10),
+      col.names = c("COMID","State","Watershed Area ($km^2$)",
+                    "Catchment Area ($km^2$)","Catchment BFI (%)",
+                    "Watershed BFI (%)"),
+      align = c('r','l'),
+      caption = "Table 1: StreamCat Base Flow Index")
+
+```
+
+```{r data wrangling, echo = FALSE}
+
+rm(nlcd_bfi);rm(bfi);rm(nlcd) # Remove extraneous datasets
 
 Eurycea <-
   env_vars %>%
@@ -129,11 +146,26 @@ Dev.yearly.new <- # Dataframe of only undescribed species
 
 ```
 
+```{r data.summary, echo=F}
+
+kable(head(Eurycea.only, n = 10),
+      col.names = c("COMID","Species","Year","Base Flow Index (%)",
+                    "Development (%)", "Forest (%)"),
+      align = c('r','l'), # Align columns
+      caption = "Table 2: Land Cover in Eurycea Catchments") # Title table
+
+kable(Dev.yearly,
+      col.names = c("Year","Mean Development (%)"),
+      align = c('r','l'),
+      caption = "Table 3: Development in Texas Catchments")
+
+```
+
 \newpage
 
 # Exploratory Analysis 
 
-```{r development plots, echo=FALSE}
+```{r Development All Species, echo = FALSE, fig.align='left', fig.width=10, fig.height=4, fig.cap="Development in Eurycea Habitat over Time"}
 
 ggplot(Eurycea.only, aes(x = Year, 
                          y = PercentDevelop, 
@@ -146,9 +178,10 @@ ggplot(Eurycea.only, aes(x = Year,
               alpha = 0.5) +
   xlab("Year") +
   ylab("% Developed Land Cover") + 
-  ggtitle("Development in Eurycea Habitat over Time") +
   theme_light()
+```
 
+```{r Development New Species, echo = FALSE, fig.align='left', fig.width=10, fig.height=4, fig.cap="Development in Undescribed Species Habitat over Time"}
 ggplot(Eurycea.new, aes(x = Year, 
                          y = PercentDevelop, 
                          color = Species)) + 
@@ -160,7 +193,6 @@ ggplot(Eurycea.new, aes(x = Year,
               alpha = 0.5) +
   xlab("Year") +
   ylab("% Developed Land Cover") + 
-  ggtitle("Development in Undescribed Eurycea Species Habitats over Time") +
   theme_light()
 # I could set ylim to remove outliers from this graph
 # But I think those outliers are an important part of this story
@@ -171,7 +203,7 @@ This first plot shows a clear upward trend in development within catchments from
 
 The second plot shows development over time for the three undescribed species. Initial takeaways are that sp. 3 has the highest percentage of development within its catchments from 2001 to 2019, followed by sp. 2 and sp. 1. It is also clear that known sites for these species have dramatic outliers, with one sp. 3 site routinely scoring at around 30-35% developed land cover, whereas most sites have 10% or less development.
 
-```{r forest plots, echo=FALSE}
+```{r Forest All Species, echo = FALSE, fig.align='left', fig.width=10, fig.height=4, fig.cap="Forest in Eurycea Habitat over Time"}
 
 ggplot(Eurycea.only, aes(x = Year, 
                          y = PercentForest, 
@@ -184,9 +216,10 @@ ggplot(Eurycea.only, aes(x = Year,
               alpha = 0.5) +
   xlab("Year") +
   ylab("% Forested Land Cover") + 
-  ggtitle("Forest in Eurycea Habitat over Time") + 
   theme_light()
+```
 
+```{r Forest New Species, echo = FALSE, fig.align='left', fig.width=10, fig.height=4, fig.cap="Forest in Undescribed Species Habitat over Time"}
 ggplot(Eurycea.new, aes(x = Year, 
                          y = PercentForest, 
                          color = Species)) + 
@@ -198,7 +231,6 @@ ggplot(Eurycea.new, aes(x = Year,
               alpha = 0.5) +
   xlab("Year") +
   ylab("% Forested Land Cover") + 
-  ggtitle("Forest in Undescribed Eurycea Species Habitats over Time") +
   theme_light()
 
 ```
@@ -211,19 +243,19 @@ The second plot again restricts this analysis to the undescribed species. Forest
 
 # Analysis
 
-I set out to test whether PercentDevelop had changed over time. However, I realized that time-series analysis requires data from continuous, regular time intervals. NLCD is only assessed every 2-3 years, which makes it poorly suited for this task. However, I soldiered on. These results are crude and most likely not fully reliable.
+I set out to test whether and how development had changed over time. I realized that time-series analysis requires data from continuous, regular time intervals. NLCD is only assessed every 2-3 years, which makes it poorly suited for this task. However, I soldiered on.
 
 ## Question 1: Has development increased over time across Texas?
 
-```{r development change over time}
+```{r development change over time, echo = FALSE}
 
 Dev.yearly.ts <- ts(Dev.yearly$Develop.Mean, 
                     start = c(2001,1,1), end = c(2019,1,1), frequency = 1)
-plot(Dev.yearly.ts) # Trend is thrown off by the missing values
-
 Dev.yearly.trend <- Kendall(Dev.yearly$Year, Dev.yearly$Develop.Mean)
 summary(Dev.yearly.trend) # p-value = 0.00083661
+```
 
+```{r Development All Texas, echo = FALSE, fig.align='left', fig.width=10, fig.height=4, fig.cap="Development in Texas Catchments over Time"}
 ggplot(Dev.yearly, aes(x = Year, 
                        y = Develop.Mean)) + 
      stat_smooth(method = "lm", 
@@ -231,8 +263,7 @@ ggplot(Dev.yearly, aes(x = Year,
                  se = TRUE,
                  alpha = 0.5) +
      xlab("Year") +
-     ylab("Mean Developed Land Cover (%)") + 
-     ggtitle("Texas Development in Stream Catchments over Time")
+     ylab("Mean Developed Land Cover (%)")
 
 ```
 
@@ -240,16 +271,16 @@ A simple Kendall time-series analysis of the data shows a clear upward trend in 
 
 ## Question 2: Has development increased over time in Eurycea habitats?
 
-```{r Eurycea change over time}
+```{r Eurycea change over time, echo = FALSE}
 
 Dev.yearly.Eurycea.ts <- ts(Dev.yearly.Eurycea$Develop.Mean, 
                     start = c(2001,1,1), end = c(2019,1,1), frequency = 1)
-plot(Dev.yearly.Eurycea.ts)
-
 Dev.yearly.Eurycea.trend <- Kendall(Dev.yearly.Eurycea$Year, 
                                     Dev.yearly.Eurycea$Develop.Mean)
 summary(Dev.yearly.Eurycea.trend) # p-value = 0.10349
+```
 
+```{r Development All Eurycea, echo = FALSE, fig.align='left', fig.width=10, fig.height=4, fig.cap="Development in Eurycea Catchments over Time"}
 ggplot(Dev.yearly.Eurycea, aes(x = Year, 
                        y = Develop.Mean)) + 
      stat_smooth(method = "lm", 
@@ -257,8 +288,7 @@ ggplot(Dev.yearly.Eurycea, aes(x = Year,
                  se = TRUE,
                  alpha = 0.5) +
      xlab("Year") +
-     ylab("Mean Developed Land Cover (%)") + 
-     ggtitle("Texas Development in Eurycea Stream Catchments over Time")
+     ylab("Mean Developed Land Cover (%)")
 
 ```
 
@@ -266,16 +296,16 @@ A simple Kendall time-series analysis of the data shows no trend in development 
 
 ## Question 3: Has development increased over time in new species' habitats?
 
-```{r Eurycea new spp. change over time}
+```{r Eurycea new spp. change over time, echo = FALSE}
 
 Dev.yearly.new.ts <- ts(Dev.yearly.new$Develop.Mean, 
                     start = c(2001,1,1), end = c(2019,1,1), frequency = 1)
-plot(Dev.yearly.new.ts) # Trend is thrown off by the missing values
-
 Dev.yearly.new.trend <- Kendall(Dev.yearly.new$Year, 
                                     Dev.yearly.new$Develop.Mean)
 summary(Dev.yearly.new.trend) # p-value = 0.00091197
+```
 
+```{r Development All New, echo = FALSE, fig.align='left', fig.width=10, fig.height=4, fig.cap="Development in Undescribed Species Catchments over Time"}
 ggplot(Dev.yearly.new, aes(x = Year, 
                        y = Develop.Mean)) + 
      stat_smooth(method = "lm", 
@@ -283,8 +313,7 @@ ggplot(Dev.yearly.new, aes(x = Year,
                  se = TRUE,
                  alpha = 0.5) +
      xlab("Year") +
-     ylab("Mean Developed Land Cover (%)") + 
-     ggtitle("Texas Development in Eurycea Stream Catchments over Time")
+     ylab("Mean Developed Land Cover (%)")
 
 ```
 
@@ -292,11 +321,13 @@ A simple Kendall time-series analysis of the data shows a clear upward trend in 
 
 ## Question 4: Is development in Texas associated with base flow index?
 
-```{r BFI effect on development}
+```{r BFI effect on development, echo = FALSE}
 
 bfidev.lm <- lm(data = Eurycea, BFI ~ PercentDevelop)
 summary(bfidev.lm) # Shows significant negative effect
+```
 
+```{r Development on BFI, echo = FALSE, fig.align='left', fig.width=10, fig.height=4, fig.cap="Effect of Development on Base Flow Index in Texas Catchments"}
 ggplot(Eurycea, aes(x = PercentDevelop,
                     y = BFI)) + 
      stat_smooth(method = "lm", 
@@ -304,8 +335,7 @@ ggplot(Eurycea, aes(x = PercentDevelop,
                  se = TRUE,
                  alpha = 0.5) +
      xlab("Developed Land Cover (%)") +
-     ylab("Base Flow Index (%)") + 
-     ggtitle("Relationship between Development and Base Flow Index")
+     ylab("Base Flow Index (%)")
 
 ```
 
@@ -335,6 +365,8 @@ There are several key weaknesses to this analysis. The adjusted R-squared of Que
 
 Overall, this analysis paints a simple picture. Development is increasing in Texas, particularly in catchments occupied by undescribed Eurycea species. This development negatively impacts groundwater discharge, which is crucial for Eurycea habitat. It is clearly imperative to petition USFWS for the protection of these undescribed species.
 
+GitHub repository: https://github.com/AnnabelleWhite/ESM
+
 \newpage
 
 # References
@@ -346,3 +378,8 @@ Devitt, T. J., Wright, A. M., Cannatella, D. C., & Hillis, D. M. (2019). Species
 Service Completes Initial Reviews on Endangered Species Act Petitions for Four Species | U.S. Fish & Wildlife Service. 2022 Oct 18. FWSgov. [accessed 2023 May 1]. https://fws.gov/press-release/2022-10/service-completes-initial-reviews-endangered-species-act-petitions-four.
 
 Weber M (2023). StreamCatTools: Streamcat Tools. R package version 0.1.1.9002, https://usepa.github.io/StreamCatTools/. 
+
+# Appendix
+
+```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+```
