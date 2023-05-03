@@ -11,38 +11,11 @@
 
 # Load your packages
 library(tidyverse);library(dataRetrieval);library(lubridate);library(remotes)
-library(ggplot2);library(ggthemes);library(rlang);library(ecodist) 
+library(ggplot2);library(ggthemes);library(RColorBrewer)
+library(rlang);library(Kendall)
 #install_github("USEPA/StreamCatTools", build_vignettes=TRUE, force=TRUE)
 library("StreamCatTools") # This imports EPA's tool for StreamCat data
 
-# Set your ggplot theme
-starwars <- theme_base() +  
-  theme( # Pulled from John's theme template code
-    line = element_line(color = "white"), 
-    rect = element_rect(fill = "black"),
-    text = element_text(color = "yellow"), 
-    
-    # Modified inheritance structure of text element
-    #plot.title = element_text(color = "yellow"), 
-    #axis.title.x =      element_blank(),
-    #axis.title.y =      element_blank(),
-    #axis.text = element_text(color = "yellow"), 
-    
-    # Modified inheritance structure of line element
-    axis.ticks = element_line(color = "yellow"),
-    panel.grid.major = element_line(color = "yellow", 
-                                    linetype = "dashed"),
-    
-    # Modified inheritance structure of rect element
-    #plot.background = element_rect(fill = "black"),
-    #panel.background = element_rect(fill = "black")
-    #legend.key =        element_rect(),
-    
-    # Modifiying legend.position
-    #legend.position = 'right',
-    
-    #complete = TRUE
-    )
 ```
 
 ``` {r import data}
@@ -87,30 +60,35 @@ rm(nlcd_bfi)#;rm(bfi);rm(nlcd)
 
 ```
 
-
 # Rationale and Research Questions
 
 Genetic testing has delineated fourteen species of Eurycea cave salamanders in central Texas, three of which are undescribed (Devitt et al. 2019). These undescribed species are new to science and therefore enjoy no protections under the Endangered Species Act (ESA). The first of these species was the subject of a petition by Save our Springs Alliance (SOS) to the U.S. Fish and Wildlife Service (USFWS) for its protection (Datri 2021). This petition passed its initial review and USFWS is now considering the species for protection (FWS 2022). Anthropogenic development including land cover change and groundwater overdraft pose the largest threats to Eurycea species by destroying forests that protect their habitats and draining the groundwater in which they live (Datri 2021).
 
 During the 2022-2023 school year, I worked with Rory Kuczek on a NSOE master's project for SOS to facilitate and strengthen future petitions by analyzing habitat threats to these undescribed species. Kuczek and I used MaxEnt and nonmetric multidimensional scaling (NMS) statistical methods to test the association of Eurycea species presences with 13 catchment-level environmental metrics from the StreamCat dataset. Both methods identified that undescribed Eurycea species 2 and 3 presences were most dependent on base flow index (BFI), a ratio of groundwater discharge to total surface flow.
 
-Building on these results, I intend to test two research questions related to habitat degradation for Eurycea species 2 and 3.
+Building on these results, I intend to test several research questions related to habitat degradation for Eurycea species 2 and 3:
 
-1. Has developed land cover increased over time in the known habitats of species 2 and 3?
+1. Has development increased over time across Texas?
 
-2. Between species 2 and species 3, which species' habitat has a higher percentage and/or rate of increase for developed land cover?
+2. Has development increased over time in Eurycea habitats?
 
-3. Are these land cover changes different from rates of change throughout Texas?
+3. Has development increased over time in new species' habitats?
 
-4. Across Texas, are increases in developed land cover over time higher in catchments/watersheds with higher levels of BFI?
+4. Is development in Texas associated with base flow index?
 
-Answers to these questions will paint a clearer picture of development in Eurycea species 2 and 3 habitat, potentially contributing to the urgency of protecting their habitat in subsequent petitions to USFWS.
+Answers to these questions should paint a clearer picture of development in Texas and in Eurycea habitat.
 
 \newpage
 
 # Dataset Information
 
 The StreamCat dataset details over 600 natural and anthropogenic metrics for streams in the contintental US at the catchment and watershed levels. The dataset includes robust web services such as a REST API and R package to facilitate data management. StreamCat is maintained by EPA as part of the National Aquatic Resource Surveys. Use of this dataset for analysis of Eurycea salamander species was recommended by John Fay.
+
+The StreamCat package and API provide metrics listed by COMID at the catchment and watersheld level, along with catchment and watershed area. The sc_nlcd function returns all NLCD metrics, in this format, for a given year and area of interest. Column names include the metrics' year of acquisition, which made it difficult to join the data into one dataframe and graph metrics over time. 
+
+To format the data as desired, I wrote a for loop which incrementally obtained NLCD from each year available, added a new "Year" column to record the year, altered the column names to remove the year, and then joined the resulting data to a growing dataframe of NLCD by year. The result is a large dataframe with all NLCD metrics for the specified area of interest (Texas) and all years available.
+
+I subsequently wrangled this dataframe to remove duplicates and NA values, change the "Year" column into a date object, and select only the relevant columns: COMID, Species, Year, BFI (at the catchment level), and summed percents of developed and forested land cover.
 
 Salamander presences were obtained from scientific literature (Devitt et al. 2019) and expert communication in government petitions (Datri 2021).
 
@@ -121,19 +99,33 @@ Eurycea <-
   distinct() %>%
   drop_na() %>%
   mutate(Year = ymd(Year)) %>%
-  mutate(BFI = BFICAT) %>% # We're working at the catchment level
+  mutate(BFI = BFICAT) %>% # We're working at the catchment level only
   mutate(PercentDevelop = PCTURBLOCAT + PCTURBMDCAT + PCTURBHICAT + PCTURBOPCAT) %>%
   mutate(PercentForest = PCTCONIFCAT + PCTDECIDCAT + PCTMXFSTCAT) %>%
   select(COMID, Species, Year, BFI, PercentDevelop, PercentForest)
 
-Eurycea.only <- # Dataframe of only salamander presences
+Eurycea.only <-  # Dataframe of only salamander presences
   Eurycea %>%
-  filter(Species != "background") # Remove all background catchments
+  filter(Species != "background")
 
-Eurycea.unnamed <- # Dataframe of only undescribed species
+Eurycea.new <- # Dataframe of only undescribed species
   Eurycea %>%
-  filter(Species %in% c("sp1", "sp2", "sp3")) %>%
-  group_by(Species)
+  filter(Species %in% c("sp1", "sp2", "sp3"))
+
+Dev.yearly <- 
+  Eurycea %>%
+  group_by(Year) %>%
+  summarise(Develop.Mean = mean(PercentDevelop))
+
+Dev.yearly.Eurycea <- # Dataframe of only salamander presences
+  Eurycea.only %>%
+  group_by(Year, Species) %>%
+  summarise(Develop.Mean = mean(PercentDevelop))
+
+Dev.yearly.new <- # Dataframe of only undescribed species
+  Eurycea.new %>%
+  group_by(Year, Species) %>%
+  summarise(Develop.Mean = mean(PercentDevelop))
 
 ```
 
@@ -154,9 +146,10 @@ ggplot(Eurycea.only, aes(x = Year,
               alpha = 0.5) +
   xlab("Year") +
   ylab("% Developed Land Cover") + 
-  ggtitle("Development in Eurycea Habitat over Time")
+  ggtitle("Development in Eurycea Habitat over Time") +
+  theme_light()
 
-ggplot(Eurycea.unnamed, aes(x = Year, 
+ggplot(Eurycea.new, aes(x = Year, 
                          y = PercentDevelop, 
                          color = Species)) + 
                      geom_point() + 
@@ -167,11 +160,14 @@ ggplot(Eurycea.unnamed, aes(x = Year,
               alpha = 0.5) +
   xlab("Year") +
   ylab("% Developed Land Cover") + 
-  ggtitle("Development in Undescribed Eurycea Species Habitats over Time")
+  ggtitle("Development in Undescribed Eurycea Species Habitats over Time") +
+  theme_light()
+# I could set ylim to remove outliers from this graph
+# But I think those outliers are an important part of this story
 
 ```
 
-This first plot shows a clear upward trend in development within catchments from 2001 to 2019 for most Eurycea species. The slope of this trend is more extreme for some species, especially E. neotenes.
+This first plot shows a clear upward trend in development within catchments from 2001 to 2019 for most Eurycea species. The slope of this trend is more extreme for some species, especially E. neotenes. (I attempted to configure a colorblind-friendly color palette, but symbolizing 14 colors is a tall ask even for broader palettes.)
 
 The second plot shows development over time for the three undescribed species. Initial takeaways are that sp. 3 has the highest percentage of development within its catchments from 2001 to 2019, followed by sp. 2 and sp. 1. It is also clear that known sites for these species have dramatic outliers, with one sp. 3 site routinely scoring at around 30-35% developed land cover, whereas most sites have 10% or less development.
 
@@ -188,9 +184,10 @@ ggplot(Eurycea.only, aes(x = Year,
               alpha = 0.5) +
   xlab("Year") +
   ylab("% Forested Land Cover") + 
-  ggtitle("Forest in Eurycea Habitat over Time")
+  ggtitle("Forest in Eurycea Habitat over Time") + 
+  theme_light()
 
-ggplot(Eurycea.unnamed, aes(x = Year, 
+ggplot(Eurycea.new, aes(x = Year, 
                          y = PercentForest, 
                          color = Species)) + 
                      geom_point() + 
@@ -201,7 +198,8 @@ ggplot(Eurycea.unnamed, aes(x = Year,
               alpha = 0.5) +
   xlab("Year") +
   ylab("% Forested Land Cover") + 
-  ggtitle("Forest in Undescribed Eurycea Species Habitats over Time")
+  ggtitle("Forest in Undescribed Eurycea Species Habitats over Time") +
+  theme_light()
 
 ```
 
@@ -213,73 +211,129 @@ The second plot again restricts this analysis to the undescribed species. Forest
 
 # Analysis
 
-## Question 1: Has developed land cover increased over time in the known habitats of species 2 and 3?
+I set out to test whether PercentDevelop had changed over time. However, I realized that time-series analysis requires data from continuous, regular time intervals. NLCD is only assessed every 2-3 years, which makes it poorly suited for this task. However, I soldiered on. These results are crude and most likely not fully reliable.
+
+## Question 1: Has development increased over time across Texas?
 
 ```{r development change over time}
 
-devtime.lm <- lm(data = Eurycea.unnamed, PercentDevelop ~ Year)
-summary(devtime.lm) # Fails to achieve significance
+Dev.yearly.ts <- ts(Dev.yearly$Develop.Mean, 
+                    start = c(2001,1,1), end = c(2019,1,1), frequency = 1)
+plot(Dev.yearly.ts) # Trend is thrown off by the missing values
 
-ggplot(Eurycea.unnamed, aes(x = Year, 
-                            y = PercentDevelop)) + 
-  stat_smooth(method = "lm", 
-              formula = y ~ x, 
-              se = TRUE,
-              alpha = 0.5) +
-  xlab("Year") +
-  ylab("Developed Land Cover (%)") + 
-  ggtitle("Texas Development in Stream Catchments over Time")
+Dev.yearly.trend <- Kendall(Dev.yearly$Year, Dev.yearly$Develop.Mean)
+summary(Dev.yearly.trend) # p-value = 0.00083661
 
-```
-
-## Question 2: Between species 2 and species 3, which species' habitat has a higher percentage and/or rate of increase for developed land cover?
-
-```{r compare 2 and 3}
-
-Eurycea.sp2sp3 <- # Dataframe of only sp. 2 & sp. 3
-  Eurycea.unnamed %>%
-  filter(Species %in% c("sp2","sp3"))
-
-devsp.lm <- lm(data = Eurycea, PercentDevelop ~ Species)
-summary(devsp.lm) # sp. 3 achieves signifance
+ggplot(Dev.yearly, aes(x = Year, 
+                       y = Develop.Mean)) + 
+     stat_smooth(method = "lm", 
+                 formula = y ~ x, 
+                 se = TRUE,
+                 alpha = 0.5) +
+     xlab("Year") +
+     ylab("Mean Developed Land Cover (%)") + 
+     ggtitle("Texas Development in Stream Catchments over Time")
 
 ```
 
-## Question 3: Are these land cover changes different from rates of change throughout Texas?
+A simple Kendall time-series analysis of the data shows a clear upward trend in development throughout Texas stream catchments. The test achieves significance (two-sided p-value = 0.00083661).
 
-```{r development change over time}
+## Question 2: Has development increased over time in Eurycea habitats?
 
-devtime.lm <- lm(data = Eurycea, PercentDevelop ~ Year)
-summary(devtime.lm) # Achieves significance, but very low R-squared
+```{r Eurycea change over time}
 
-ggplot(Eurycea, aes(x = Year, 
-                    y = PercentDevelop)) + 
-  stat_smooth(method = "lm", 
-              formula = y ~ x, 
-              se = TRUE,
-              alpha = 0.5) +
-  xlab("Year") +
-  ylab("Developed Land Cover (%)") + 
-  ggtitle("Texas Development in Stream Catchments over Time")
+Dev.yearly.Eurycea.ts <- ts(Dev.yearly.Eurycea$Develop.Mean, 
+                    start = c(2001,1,1), end = c(2019,1,1), frequency = 1)
+plot(Dev.yearly.Eurycea.ts)
+
+Dev.yearly.Eurycea.trend <- Kendall(Dev.yearly.Eurycea$Year, 
+                                    Dev.yearly.Eurycea$Develop.Mean)
+summary(Dev.yearly.Eurycea.trend) # p-value = 0.10349
+
+ggplot(Dev.yearly.Eurycea, aes(x = Year, 
+                       y = Develop.Mean)) + 
+     stat_smooth(method = "lm", 
+                 formula = y ~ x, 
+                 se = TRUE,
+                 alpha = 0.5) +
+     xlab("Year") +
+     ylab("Mean Developed Land Cover (%)") + 
+     ggtitle("Texas Development in Eurycea Stream Catchments over Time")
 
 ```
 
-## Question 4: Across Texas, are increases in developed land cover over time higher in catchments/watersheds with higher levels of BFI?
+A simple Kendall time-series analysis of the data shows no trend in development throughout Eurycea stream catchments. The test fails to achieve significance (two-sided p-value = 0.10349).
+
+## Question 3: Has development increased over time in new species' habitats?
+
+```{r Eurycea new spp. change over time}
+
+Dev.yearly.new.ts <- ts(Dev.yearly.new$Develop.Mean, 
+                    start = c(2001,1,1), end = c(2019,1,1), frequency = 1)
+plot(Dev.yearly.new.ts) # Trend is thrown off by the missing values
+
+Dev.yearly.new.trend <- Kendall(Dev.yearly.new$Year, 
+                                    Dev.yearly.new$Develop.Mean)
+summary(Dev.yearly.new.trend) # p-value = 0.00091197
+
+ggplot(Dev.yearly.new, aes(x = Year, 
+                       y = Develop.Mean)) + 
+     stat_smooth(method = "lm", 
+                 formula = y ~ x, 
+                 se = TRUE,
+                 alpha = 0.5) +
+     xlab("Year") +
+     ylab("Mean Developed Land Cover (%)") + 
+     ggtitle("Texas Development in Eurycea Stream Catchments over Time")
+
+```
+
+A simple Kendall time-series analysis of the data shows a clear upward trend in development throughout unnamed species' stream catchments. The test achieves significance (two-sided p-value = 0.00091197).
+
+## Question 4: Is development in Texas associated with base flow index?
 
 ```{r BFI effect on development}
 
 bfidev.lm <- lm(data = Eurycea, BFI ~ PercentDevelop)
 summary(bfidev.lm) # Shows significant negative effect
 
+ggplot(Eurycea, aes(x = PercentDevelop,
+                    y = BFI)) + 
+     stat_smooth(method = "lm", 
+                 formula = y ~ x, 
+                 se = TRUE,
+                 alpha = 0.5) +
+     xlab("Developed Land Cover (%)") +
+     ylab("Base Flow Index (%)") + 
+     ggtitle("Relationship between Development and Base Flow Index")
+
 ```
 
-This simple linear model suggests that base flow index and development cover are negatively correlated. The model achieves significance, but has an adjusted R-squared of less than 1%. 
+This simple linear model suggests that base flow index and development cover are negatively correlated. For each 1% increase in development cover within a catchment, BFI decreases by 3%. The model achieves significance (p-value < 2.2e-16), but has an adjusted R-squared of less than 1%.
 
 \newpage
 
 # Summary and Conclusions
 
+Despite the inconvenient format of the dataset, I was able to perform time-series analysis on the percentage of developed land cover within Texas stream catchments from 2001 to 2019. Almost all of my tests achieved significance. From these tests, I can conclude that:
 
+(Question 1) the mean percent of developed land cover within Texas stream catchments has increased from 2001 to 2019;
+
+(Question 2) the mean percent of developed land cover within stream catchments inhabited by all Eurycea species has not changed from 2001 to 2019;
+
+(Question 3) the mean percent of developed land cover within stream catchments inhabited by undescribed Eurycea species has increased from 2001 to 2019;
+
+and (Question 4) as developed land cover within a catchment increases, base flow index within the catchment decreases.
+
+If true, these are sensible and useful results to see. It is broadly understood that Texas is increasingly developing its land as population centers like Austin and San Antonio expand. This development poses a threat to Eurycea habitat. Question 4's linear model evinces this threat: as development increases, base flow index decreases threefold. This is likely because developed areas build wells to extract groundwater for human consumption, reducing the amount of groundwater available to Eurycea in those catchments.
+
+Across Eurycea as a genus, there is no clear trend in development change. This may be because these species occupy different areas within the Edwards-Trinity aquifer system. For example, E. sosorum and E. waterlooensis habitat is centered in Austin. These catchments may already be maximally developed and have little room to change. Other species, such as E. troglodytes, primarily occupy low-development catchments in western Hill Country. These catchments have not yet seen increased development, but may be targeted for development in future. Species like E. neotenes occupy suburban and ex-urban areas, which are at the forefront of development from urban sprawl. This could explain why E. neotenes shows the clearest upward trend in graphs of development change.
+
+However, when subset to undescribed Eurycea species 1, 2, and 3, there is a clear upward trend in development change. This trend is primarily driven by outlier sites for species 3, which have increased from below 30% development to over 35% development. This suggests an increasing rate of development at at least one catchment inhabited by species 3, which may be cause for petitioning USFWS to protect this species.
+
+There are several key weaknesses to this analysis. The adjusted R-squared of Question 4's linear model is minuscule. This suggests that while development may have a relation to base flow index, it is far from the only variable explaining rates of groundwater discharge. Additionally, the time-series data for questions 1-3 is choppy and irregular. This may limit the accuracy of the conclusions drawn.
+
+Overall, this analysis paints a simple picture. Development is increasing in Texas, particularly in catchments occupied by undescribed Eurycea species. This development negatively impacts groundwater discharge, which is crucial for Eurycea habitat. It is clearly imperative to petition USFWS for the protection of these undescribed species.
 
 \newpage
 
